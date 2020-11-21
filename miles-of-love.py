@@ -1,5 +1,3 @@
-# garmin url to retrieve: https://connect.garmin.com/modern/proxy/activitylist-service/activities/forsander?start=1&limit=100
-
 # TODO
 # match on gps as well
 # take the smaller distance of the two on matches
@@ -7,6 +5,7 @@
 
 
 import json
+import requests
 from datetime import datetime, timedelta
 
 class Activity:
@@ -30,20 +29,22 @@ class Activity:
             self.startTimeGMT,
             self.distance)
 
-def parseFile(fp):
+def getData(username):
+    r = requests.get("https://connect.garmin.com/modern/proxy/activitylist-service/activities/{0}?start=1&limit=100".format(username)).json()
     activities = {
         'running' : [],
         'hiking' : [],
         'cycling' : [],
     }
-    fileData = json.load(fp)
-    for garminActivity in fileData['activityList']:
+    for garminActivity in r['activityList']:
         activity = {}
         activityType = garminActivity['activityType']['typeKey']
         if activityType == 'other' and 'hike' in garminActivity['activityName'].lower():
             activityType = 'hiking'
         elif activityType == 'trail_running':
             activityType = 'running'
+        elif activityType == 'mountain_biking':
+            activityType = 'cycling'
         try:
             activities[activityType].append(Activity(
                 garminActivity['activityName'],
@@ -59,27 +60,25 @@ def parseFile(fp):
             exit()
     return activities
 
-with open('forsander_0_100.json','r') as aaronFile:
-    with open('frank_0_10.json','r') as beccaFile:
-        aActivities = parseFile(aaronFile)
-        bActivities = parseFile(beccaFile)
-        aIndex = 0
-        bIndex = 0
-        while aIndex < len(aActivities['running']) and bIndex < len(bActivities['running']):
-            if aActivities['running'][aIndex].matches(bActivities['running'][bIndex]):
-                print("A & B ran {0} mi together on {1}".format(
-                    aActivities['running'][aIndex].distance,
-                    aActivities['running'][aIndex].startTimeGMT))
-                aIndex = aIndex + 1
-                bIndex = bIndex + 1
-            elif aActivities['running'][aIndex].startTimeGMT > bActivities['running'][bIndex].startTimeGMT:
-                print("A ran {0} mi on {1}".format(
-                    aActivities['running'][aIndex].distance,
-                    aActivities['running'][aIndex].startTimeGMT))
-                aIndex = aIndex + 1
-            else:
-                print("B ran {0} mi on {1}".format(
-                    bActivities['running'][bIndex].distance,
-                    bActivities['running'][bIndex].startTimeGMT))
-                bIndex = bIndex + 1
+aActivities = getData("forsander")
+bActivities = getData("rebfrank")
+aIndex = 0
+bIndex = 0
+while aIndex < len(aActivities['running']) and bIndex < len(bActivities['running']):
+    if aActivities['running'][aIndex].matches(bActivities['running'][bIndex]):
+        print("A & B ran {0} mi together on {1}".format(
+            aActivities['running'][aIndex].distance,
+            aActivities['running'][aIndex].startTimeGMT))
+        aIndex = aIndex + 1
+        bIndex = bIndex + 1
+    elif aActivities['running'][aIndex].startTimeGMT > bActivities['running'][bIndex].startTimeGMT:
+        print("A ran {0} mi on {1}".format(
+            aActivities['running'][aIndex].distance,
+            aActivities['running'][aIndex].startTimeGMT))
+        aIndex = aIndex + 1
+    else:
+        print("B ran {0} mi on {1}".format(
+            bActivities['running'][bIndex].distance,
+            bActivities['running'][bIndex].startTimeGMT))
+        bIndex = bIndex + 1
 
