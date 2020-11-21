@@ -1,3 +1,4 @@
+import argparse
 import requests
 import geopy.distance
 from datetime import datetime, timedelta
@@ -12,10 +13,10 @@ class Activity:
         self.id = gid
     def milesMatched(self,activity2):
         if self.startTimeGMT < activity2.startTimeGMT:
-            if activity2.startTimeGMT > self.startTimeGMT + self.duration / 2:
+            if activity2.startTimeGMT > self.startTimeGMT + self.duration * 0.7:
                 return 0
         else:
-            if self.startTimeGMT > activity2.startTimeGMT + activity2.duration / 2:
+            if self.startTimeGMT > activity2.startTimeGMT + activity2.duration * 0.7:
                 return 0
         if geopy.distance.distance(self.coords, activity2.coords).miles > self.distance / 2:
             return 0
@@ -63,10 +64,6 @@ def getData(username):
                     activityType = 'hiking'
                 elif 'running' in garminActivity['activityName'].lower():
                     activityType = 'running'
-                elif 'austin' in garminActivity['activityName'].lower():
-                    activityType = 'running'
-                elif 'denver' in garminActivity['activityName'].lower():
-                    activityType = 'running'
                 # filter out skiing by checking elevation and max speed
                 elif garminActivity['elevationGain'] < 2100:
                     # garmin speeds are in m/s
@@ -95,13 +92,31 @@ def getData(username):
                     garminActivity['activityId']))
     return activities
 
-def printActivity(who, activity, activityType):
-    printsOn = False
+def printActivity(miles, activity1, activity2, activityType):
+    printsOn = True
     if printsOn:
-        print("{0} did {1} {2}".format(
+        who = ""
+        ids = ""
+        date = ""
+        if activity1 and activity2:
+            who = "Both users"
+            ids = "{0} and {1}".format(activity1.id, activity2.id)
+            date = "{0} and {1}".format(activity1.startTimeGMT, activity2.startTimeGMT)
+        elif activity1:
+            who = "User 1"
+            ids = "{0}".format(activity1.id)
+            date = "{0}".format(activity1.startTimeGMT)
+        elif activity2:
+            who = "User 2"
+            ids = "{0}".format(activity2.id)
+            date = "{0}".format(activity2.startTimeGMT)
+        else:
+            raise ValueError("At least one activity must be provided")
+        print("{0} did {1} mi on {2} ({3})".format(
             who,
-            activity,
-            activityType))
+            miles,
+            date,
+            ids,))
 
 def countMiles(aActivities, bActivities, activityType):
     aIndex = 0
@@ -110,20 +125,42 @@ def countMiles(aActivities, bActivities, activityType):
     while aIndex < len(aActivities) and bIndex < len(bActivities):
         milesMatched = aActivities[aIndex].milesMatched(bActivities[bIndex])
         if milesMatched > 0:
-            printActivity("A & B",aActivities[aIndex],activityType)
+            printActivity(milesMatched,aActivities[aIndex],bActivities[bIndex],activityType)
             milesTogether += milesMatched
-            aIndex = aIndex + 1
-            bIndex = bIndex + 1
+            # handle case where one person recorded 2 activities for the same activity
+            try:
+                milesMatched = aActivities[aIndex+1].milesMatched(bActivities[bIndex])
+                if milesMatched > 0:
+                    printActivity(milesMatched,aActivities[aIndex+1],bActivities[bIndex],activityType)
+                    milesTogether += milesMatched
+                    aIndex += 1
+            except IndexError:
+                pass
+            try:
+                milesMatched = aActivities[aIndex].milesMatched(bActivities[bIndex+1])
+                if milesMatched > 0:
+                    printActivity(milesMatched,aActivities[aIndex],bActivities[bIndex+1],activityType)
+                    milesTogether += milesMatched
+                    bIndex += 1
+            except IndexError:
+                pass
+            aIndex += 1
+            bIndex += 1
         elif aActivities[aIndex].startTimeGMT > bActivities[bIndex].startTimeGMT:
-            printActivity("A",aActivities[aIndex],activityType)
+            printActivity(aActivities[aIndex].distance,aActivities[aIndex],None,activityType)
             aIndex = aIndex + 1
         else:
-            printActivity("B",bActivities[bIndex],activityType)
+            printActivity(bActivities[bIndex].distance,None,bActivities[bIndex],activityType)
             bIndex = bIndex + 1
     return milesTogether
 
-aActivities = getData("forsander")
-bActivities = getData("rebfrank")
+parser = argparse.ArgumentParser()
+parser.add_argument("user1",help="The Garmin Connect username of the first user (profile must be set to Public)")
+parser.add_argument("user2",help="The Garmin Connect username of the second user (profile must be set to Public)")
+args = parser.parse_args()
+
+aActivities = getData(args.user1)
+bActivities = getData(args.user2)
 for activityType in aActivities.keys():
     miles = countMiles(aActivities[activityType],bActivities[activityType],activityType)
-    print("\n\nTOTAL MILES {0} TOGETHER: {1}".format(activityType, miles))
+    print("\nTOTAL MILES {0} TOGETHER: {1}\n".format(activityType, miles))
