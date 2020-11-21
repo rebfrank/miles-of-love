@@ -24,7 +24,6 @@ class Activity:
         return "{0} mi on {1} ({2})".format(self.distance, self.startTimeGMT, self.id)
 
 def getData(username):
-    r = requests.get("https://connect.garmin.com/modern/proxy/activitylist-service/activities/{0}?start=1&limit=2000".format(username)).json()
     activities = {
         'running' : [],
         'hiking' : [],
@@ -32,62 +31,68 @@ def getData(username):
         'swimming' : [],
         'uncategorized' : []
     }
-    activityTypeMapping = {
-        'running' : 'running',
-        'hiking' : 'hiking',
-        'cycling' : 'cycling',
-        'trail_running' : 'running',
-        'mountain_biking' : 'cycling',
-        'walking' : 'hiking',
-        'open_water_swimming' : 'swimming',
-        'lap_swimming' : 'swimming',
-        'resort_skiing_snowboarding_ws' : 'uncategorized',
-        'transition' : 'uncategorized',
-        'whitewater_rafting_kayaking' : 'uncategorized',
-        'road_biking' : 'cycling',
-        'treadmill_running' : 'running',
-        'multi_sport' : 'uncategorized',
-    }
-    for garminActivity in r['activityList']:
-        activityType = garminActivity['activityType']['typeKey']
-        if activityType == 'other':
-            if 'hike' in garminActivity['activityName'].lower():
-                activityType = 'hiking'
-            elif 'walking' in garminActivity['activityName'].lower():
-                activityType = 'hiking'
-            elif 'running' in garminActivity['activityName'].lower():
-                activityType = 'running'
-            elif 'austin' in garminActivity['activityName'].lower():
-                activityType = 'running'
-            elif 'denver' in garminActivity['activityName'].lower():
-                activityType = 'running'
-            # filter out skiing by checking elevation and max speed
-            elif garminActivity['elevationGain'] < 2100:
-                # garmin speeds are in m/s
-                if garminActivity['maxSpeed'] and garminActivity['maxSpeed'] < 11:
-                    if garminActivity['averageSpeed'] < 0.8904:
-                        activityType = 'hiking'
-                    elif garminActivity['averageSpeed'] < 3.3528:
-                        activityType = 'running'
-                    if garminActivity['elevationGain'] > 900:
-                        print("Guessed as run or hike: {0}".format(garminActivity['activityId']))
-        try:
-            activityType = activityTypeMapping[activityType]
-            activities[activityType].append(Activity(
-                garminActivity['activityName'],
-                garminActivity['startTimeGMT'],
-                garminActivity['distance'],
-                garminActivity['duration'],
-                garminActivity['startLatitude'],
-                garminActivity['startLongitude'],
-                garminActivity['activityId']
-            ))
-        except KeyError:
-            print("Activity type not recognized: {0}, {1} ({2})".format(
-                activityType,
-                garminActivity['activityName'],
-                garminActivity['activityId']))
-            #exit()
+    startIndex = 1
+    sizeToFetch = 200
+    while (True):
+        r = requests.get("https://connect.garmin.com/modern/proxy/activitylist-service/activities/{0}?start={1}&limit={2}".format(username,startIndex,sizeToFetch)).json()
+        if(len(r['activityList']) == 0):
+            break
+        startIndex += sizeToFetch
+        activityTypeMapping = {
+            'running' : 'running',
+            'hiking' : 'hiking',
+            'cycling' : 'cycling',
+            'trail_running' : 'running',
+            'mountain_biking' : 'cycling',
+            'walking' : 'hiking',
+            'open_water_swimming' : 'swimming',
+            'lap_swimming' : 'swimming',
+            'resort_skiing_snowboarding_ws' : 'uncategorized',
+            'transition' : 'uncategorized',
+            'whitewater_rafting_kayaking' : 'uncategorized',
+            'road_biking' : 'cycling',
+            'treadmill_running' : 'running',
+            'multi_sport' : 'uncategorized',
+        }
+        for garminActivity in r['activityList']:
+            activityType = garminActivity['activityType']['typeKey']
+            if activityType == 'other':
+                if 'hike' in garminActivity['activityName'].lower():
+                    activityType = 'hiking'
+                elif 'walking' in garminActivity['activityName'].lower():
+                    activityType = 'hiking'
+                elif 'running' in garminActivity['activityName'].lower():
+                    activityType = 'running'
+                elif 'austin' in garminActivity['activityName'].lower():
+                    activityType = 'running'
+                elif 'denver' in garminActivity['activityName'].lower():
+                    activityType = 'running'
+                # filter out skiing by checking elevation and max speed
+                elif garminActivity['elevationGain'] < 2100:
+                    # garmin speeds are in m/s
+                    if garminActivity['maxSpeed'] and garminActivity['maxSpeed'] < 11:
+                        if garminActivity['averageSpeed'] < 0.8904:
+                            activityType = 'hiking'
+                        elif garminActivity['averageSpeed'] < 3.3528:
+                            activityType = 'running'
+                        if garminActivity['elevationGain'] > 900:
+                            print("Guessed as run or hike: {0}".format(garminActivity['activityId']))
+            try:
+                activityType = activityTypeMapping[activityType]
+                activities[activityType].append(Activity(
+                    garminActivity['activityName'],
+                    garminActivity['startTimeGMT'],
+                    garminActivity['distance'],
+                    garminActivity['duration'],
+                    garminActivity['startLatitude'],
+                    garminActivity['startLongitude'],
+                    garminActivity['activityId']
+                ))
+            except KeyError:
+                print("Activity type not recognized: {0}, {1} ({2})".format(
+                    activityType,
+                    garminActivity['activityName'],
+                    garminActivity['activityId']))
     return activities
 
 def printActivity(who, activity, activityType):
