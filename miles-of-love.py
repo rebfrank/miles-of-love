@@ -1,7 +1,5 @@
-# TODO
-# match on gps as well
-
 import requests
+import geopy.distance
 from datetime import datetime, timedelta
 
 class Activity:
@@ -10,8 +8,7 @@ class Activity:
         self.startTimeGMT = datetime.strptime(startTimeGMT, "%Y-%m-%d %H:%M:%S")
         self.distance = distance/1609.34
         self.duration = timedelta(seconds=duration)
-        self.startLatitude = startLatitude
-        self.startLongitude = startLongitude
+        self.coords = (startLatitude, startLongitude)
         self.id = gid
     def milesMatched(self,activity2):
         if self.startTimeGMT < activity2.startTimeGMT:
@@ -20,6 +17,8 @@ class Activity:
         else:
             if self.startTimeGMT > activity2.startTimeGMT + activity2.duration / 2:
                 return 0
+        if geopy.distance.distance(self.coords, activity2.coords).miles > self.distance / 2:
+            return 0
         return min(activity2.distance, self.distance)
     def __repr__(self):
         return "{0} mi on {1} ({2})".format(self.distance, self.startTimeGMT, self.id)
