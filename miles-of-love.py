@@ -1,10 +1,7 @@
 # TODO
 # match on gps as well
 # take the smaller distance of the two on matches
-# retrieve the data from the public urls
 
-
-import json
 import requests
 from datetime import datetime, timedelta
 
@@ -30,22 +27,43 @@ class Activity:
             self.distance)
 
 def getData(username):
-    r = requests.get("https://connect.garmin.com/modern/proxy/activitylist-service/activities/{0}?start=1&limit=100".format(username)).json()
+    r = requests.get("https://connect.garmin.com/modern/proxy/activitylist-service/activities/{0}?start=1&limit=2000".format(username)).json()
     activities = {
         'running' : [],
         'hiking' : [],
         'cycling' : [],
+        'swimming' : [],
+        'skiing' : []
+    }
+    activityTypeMapping = {
+        'running' : 'running',
+        'hiking' : 'hiking',
+        'cycling' : 'cycling',
+        'trail_running' : 'running',
+        'mountain_biking' : 'cycling',
+        'walking' : 'hiking',
+        'open_water_swimming' : 'swimming',
+        'lap_swimming' : 'swimming',
+        'resort_skiing_snowboarding_ws' : 'skiing',
+        'road_biking' : 'cycling',
     }
     for garminActivity in r['activityList']:
-        activity = {}
         activityType = garminActivity['activityType']['typeKey']
-        if activityType == 'other' and 'hike' in garminActivity['activityName'].lower():
-            activityType = 'hiking'
-        elif activityType == 'trail_running':
-            activityType = 'running'
-        elif activityType == 'mountain_biking':
-            activityType = 'cycling'
+        if activityType == 'other':
+            if 'hike' in garminActivity['activityName'].lower():
+                activityType = 'hiking'
+            elif 'monterosso al mare' in garminActivity['activityName'].lower():
+                activityType = 'hiking'
+            elif 'walking' in garminActivity['activityName'].lower():
+                activityType = 'hiking'
+            elif 'running' in garminActivity['activityName'].lower():
+                activityType = 'running'
+            elif 'austin' in garminActivity['activityName'].lower():
+                activityType = 'running'
+            elif 'denver' in garminActivity['activityName'].lower():
+                activityType = 'running'
         try:
+            activityType = activityTypeMapping[activityType]
             activities[activityType].append(Activity(
                 garminActivity['activityName'],
                 garminActivity['startTimeGMT'],
@@ -55,20 +73,24 @@ def getData(username):
                 garminActivity['startLongitude']
             ))
         except KeyError:
-            print("Activity type not recognized: " + activityType)
-            print("Activity name: " + garminActivity['activityName'])
-            exit()
+            print("Activity type not recognized: {0}, {1} ({2})".format(
+                activityType,
+                garminActivity['activityName'],
+                garminActivity['activityId']))
+            #exit()
     return activities
 
 aActivities = getData("forsander")
 bActivities = getData("rebfrank")
 aIndex = 0
 bIndex = 0
+milesTogether = 0
 while aIndex < len(aActivities['running']) and bIndex < len(bActivities['running']):
     if aActivities['running'][aIndex].matches(bActivities['running'][bIndex]):
         print("A & B ran {0} mi together on {1}".format(
             aActivities['running'][aIndex].distance,
             aActivities['running'][aIndex].startTimeGMT))
+        milesTogether += aActivities['running'][aIndex].distance
         aIndex = aIndex + 1
         bIndex = bIndex + 1
     elif aActivities['running'][aIndex].startTimeGMT > bActivities['running'][bIndex].startTimeGMT:
@@ -81,4 +103,4 @@ while aIndex < len(aActivities['running']) and bIndex < len(bActivities['running
             bActivities['running'][bIndex].distance,
             bActivities['running'][bIndex].startTimeGMT))
         bIndex = bIndex + 1
-
+print("\n\nTOTAL MILES TOGETHER: {0}".format(milesTogether))
